@@ -22,7 +22,10 @@ class EvilSpiderConfig:
             "max_links": 5000,
             "output": "spider_results.json",
             "json": False,
-            "quiet": False
+            "quiet": False,
+            "max_depth": 3,
+            "robots": False,
+            "sitemaps": False
         }
         
         if args_dict.get('config') and os.path.exists(args_dict['config']):
@@ -75,6 +78,8 @@ class Crawler:
         self.visited = set()
         self.results = []
         self.semaphore = asyncio.Semaphore(self.config.get('threads', 10))
+        self.queue = asyncio.Queue()
+        self.subdomains = set()
 
     def check_extension(self, url):
         """Hunts for specific file extensions."""
@@ -90,6 +95,55 @@ class Crawler:
 
     def is_parameterized(self, url):
         return bool(urlparse(url).query)
+    async def parse_robots_txt(self, session):
+        if not self.config.get('robots'):
+            return
+        parsed_url = urlparse(self.config['url'])
+        robots_url = f"{parsed_url.scheme}://{parsed_url.netloc}/robots.txt"
+        logging.info(f"Parsing robots.txt: {robots_url}")
+        try:
+            async with session.get(robots_url, timeout=self.config['timeout'], ssl=False) as response:
+                if response.status == 200:
+                    text = await response.text()
+                    urls = []
+                    for line in text.splitlines():
+                        line = line.strip()
+                        if line.lower().startswith('allow:') or line.lower().startswith('disallow:'):
+                            path = line.split(':', 1)[1].strip()
+                            if path:
+                                urls.append(urljoin(self.config['url'], path))
+                        elif line.lower().startswith('sitemap:'):
+                            sitemap_url = line.split(':', 1)[1].strip()
+                            if self.config.get('sitemaps'):
+                                await self.parse_sitemap(session, sitemap_url)
+                    for u in urls:
+                        await self.queue.put((u, 1))
+                        if not self.config['quiet']:
+                            logging.info(f"Added from robots.txt: {u}")
+        except Exception as e:
+            logging.debug(f"Could not fetch robots.txt: {e}")
+
+    async def parse_sitemap(self, session, sitemap_url=None):
+        if not self.config.get('sitemaps'):
+            return
+        if not sitemap_url:
+            parsed_url = urlparse(self.config['url'])
+            sitemap_url = f"{parsed_url.scheme}://{parsed_url.netloc}/sitemap.xml"
+        logging.info(f"Parsing sitemap.xml: {sitemap_url}")
+        try:
+            async with session.get(sitemap_url, timeout=self.config['timeout'], ssl=False) as response:
+                if response.status == 200:
+                    text = await response.text()
+                    urls = re.findall(r'<loc>(.*?)</loc>', text)
+                    for u in urls:
+                        if u.endswith('.xml'):
+                            await self.parse_sitemap(session, u)
+                        else:
+                            await self.queue.put((u, 1))
+                            if not self.config['quiet']:
+                                logging.info(f"Added from sitemap: {u}")
+        except Exception as e:
+            logging.debug(f"Could not fetch sitemap.xml: {e}")
 
     async def fetch(self, session, url):
         if url in self.visited:
@@ -118,12 +172,27 @@ class Crawler:
                                 self.results.append({"url": url, "status": status})
 
                     # Extract links (Absolute and Relative)
-                    raw_links = re.findall(r'href=["\'](.*?)["\']', text)
+                    raw_links = re.findall(r'(?:href|src)=["\'](.*?)["\']', text)
                     clean_links = []
                     for link in raw_links:
                         full_url = urljoin(url, link)
+
+                        target_netloc = urlparse(self.config['url']).netloc
+                        found_netloc = urlparse(full_url).netloc
+
+                        target_domain = target_netloc.split(':')[0]
+                        found_domain = found_netloc.split(':')[0]
+
+                        is_subdomain = found_domain != target_domain and found_domain.endswith('.' + target_domain)
+
+                        if is_subdomain:
+                            if found_domain not in self.subdomains:
+                                self.subdomains.add(found_domain)
+                                if not self.config['quiet']:
+                                    logging.info(f"Discovered subdomain: {found_domain}")
+
                         # Keep it in scope (basic implementation, can be customized)
-                        if urlparse(full_url).netloc == urlparse(self.config['url']).netloc:
+                        if found_domain == target_domain or is_subdomain:
                             clean_links.append(full_url)
                     return clean_links
 
@@ -137,29 +206,50 @@ class Crawler:
                 logging.debug(f"Unexpected error for {url}: {e}")
                 return []
 
+    async def worker(self, session):
+        while True:
+            try:
+                url, depth = await self.queue.get()
+            except asyncio.CancelledError:
+                break
+
+            try:
+                if len(self.visited) >= self.config['max_links']:
+                    continue
+
+                if depth <= self.config['max_depth']:
+                    links = await self.fetch(session, url)
+                    for link in links:
+                        if link not in self.visited:
+                            await self.queue.put((link, depth + 1))
+            except Exception as e:
+                logging.debug(f"Worker error processing {url}: {e}")
+            finally:
+                self.queue.task_done()
+
     async def crawl(self):
         logging.info(f"Starting EvilSpider on {self.config['url']}")
-        logging.info(f"Threads: {self.config['threads']} | Exts: {self.config['exts']} | Status: {self.config['status']}")
+        logging.info(f"Threads: {self.config['threads']} | Exts: {self.config['exts']} | Status: {self.config['status']} | Max Depth: {self.config['max_depth']}")
         
         connector = aiohttp.TCPConnector(limit_per_host=self.config['threads'])
         headers = {"User-Agent": self.config['user_agent']}
         
         async with aiohttp.ClientSession(headers=headers, connector=connector) as session:
-            queue = [self.config['url']]
+            # Parse robots.txt and sitemap.xml first
+            await self.parse_robots_txt(session)
+            await self.parse_sitemap(session)
             
-            while queue:
-                tasks = [self.fetch(session, url) for url in queue]
-                queue = []
-                responses = await asyncio.gather(*tasks)
-                
-                for links in responses:
-                    for link in links:
-                        if link not in self.visited:
-                            queue.append(link)
-                
-                if len(self.visited) >= self.config['max_links']: # Safety threshold
-                    logging.warning("Max limits reached.")
-                    break
+            await self.queue.put((self.config['url'], 1))
+
+            workers = [asyncio.create_task(self.worker(session)) for _ in range(self.config['threads'])]
+
+            await self.queue.join()
+
+            for w in workers:
+                w.cancel()
+
+            if len(self.visited) >= self.config['max_links']: # Safety threshold
+                logging.warning("Max limits reached.")
 
     def save_output(self):
         if self.results:
@@ -169,6 +259,19 @@ class Crawler:
                 logging.info(f"Saved {len(self.results)} targets to {self.config['output']}")
             except IOError as e:
                 logging.error(f"Failed to save output to {self.config['output']}: {e}")
+        if self.subdomains:
+            logging.info(f"Discovered subdomains: {', '.join(self.subdomains)}")
+            import os
+            base, ext = os.path.splitext(self.config['output'])
+            if not ext:
+                ext = '.json'
+            subdomains_output = f"{base}_subdomains{ext}"
+            try:
+                with open(subdomains_output, 'w') as f:
+                    json.dump(list(self.subdomains), f, indent=4)
+                logging.info(f"Saved {len(self.subdomains)} subdomains to {subdomains_output}")
+            except IOError as e:
+                logging.error(f"Failed to save subdomains to {subdomains_output}: {e}")
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -202,6 +305,9 @@ Examples:
     crawl_parser.add_argument("-j", "--json", action="store_true", help="Output results in JSON format to stdout")
     crawl_parser.add_argument("-q", "--quiet", action="store_true", help="Suppress informational output to stdout")
     crawl_parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
+    crawl_parser.add_argument("-d", "--max-depth", type=int, help="Maximum crawl depth (default: 3)")
+    crawl_parser.add_argument("--robots", action="store_true", help="Parse robots.txt")
+    crawl_parser.add_argument("--sitemaps", action="store_true", help="Parse sitemap.xml")
     
     args = parser.parse_args()
     

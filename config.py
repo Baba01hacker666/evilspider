@@ -1,0 +1,69 @@
+import json
+import os
+import sys
+import logging
+from urllib.parse import urlparse
+
+class EvilSpiderConfig:
+    def __init__(self, args_dict):
+        self.config = {
+            "url": None,
+            "threads": 10,
+            "timeout": 5,
+            "params_only": False,
+            "status": [200],
+            "keywords": [],
+            "exts": [],
+            "user_agent": os.environ.get("EVILSPIDER_USER_AGENT", "EvilSpider/2.0 (Customizable Crawler)"),
+            "max_links": 5000,
+            "output": "spider_results.json",
+            "json": False,
+            "quiet": False,
+            "max_depth": 3,
+            "robots": False,
+            "sitemaps": False
+        }
+
+        if args_dict.get('config') and os.path.exists(args_dict['config']):
+            try:
+                with open(args_dict['config'], 'r') as f:
+                    file_config = json.load(f)
+                    self.config.update(file_config)
+            except json.JSONDecodeError as e:
+                logging.error(f"Error parsing config file: {e}")
+                sys.exit(1)
+            except Exception as e:
+                logging.error(f"Error reading config file: {e}")
+                sys.exit(1)
+
+        # Override with CLI arguments (if provided)
+        cli_args = {k: v for k, v in args_dict.items() if v is not None}
+        self.config.update(cli_args)
+
+        self._validate_and_parse()
+
+    def _validate_and_parse(self):
+        # Validate URL
+        if not self.config['url']:
+            logging.error("No target URL provided.")
+            sys.exit(1)
+
+        parsed_url = urlparse(self.config['url'])
+        if parsed_url.scheme not in ('http', 'https') or not parsed_url.netloc:
+            logging.error(f"Invalid URL provided: {self.config['url']}")
+            sys.exit(1)
+
+        # Ensure lists are properly typed if passed as strings from CLI
+        if isinstance(self.config['status'], str):
+            try:
+                self.config['status'] = [int(s.strip()) for s in self.config['status'].split(',')]
+            except ValueError:
+                logging.error("Status codes must be integers.")
+                sys.exit(1)
+        if isinstance(self.config['keywords'], str):
+            self.config['keywords'] = [k.strip() for k in self.config['keywords'].split(',')]
+        if isinstance(self.config['exts'], str):
+            self.config['exts'] = [e.strip() for e in self.config['exts'].split(',')]
+
+        # Validate output path
+        self.config['output'] = os.path.abspath(self.config['output'])

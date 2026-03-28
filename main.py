@@ -40,6 +40,8 @@ Examples:
     crawl_parser.add_argument("-d", "--max-depth", type=int, help="Maximum crawl depth (default: 3)")
     crawl_parser.add_argument("--robots", action="store_true", help="Parse robots.txt")
     crawl_parser.add_argument("--sitemaps", action="store_true", help="Parse sitemap.xml")
+    crawl_parser.add_argument("--detect-uploads", action="store_true", help="Detect forms with file uploads")
+    crawl_parser.add_argument("-C", "--cookies", help="Cookies to use for requests (string or file path)")
     
     args = parser.parse_args()
     

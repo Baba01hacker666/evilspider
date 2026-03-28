@@ -21,7 +21,10 @@ class EvilSpiderConfig:
             "quiet": False,
             "max_depth": 3,
             "robots": False,
-            "sitemaps": False
+            "sitemaps": False,
+            "detect_uploads": False,
+            "cookies": None,
+            "parsed_cookies": None
         }
 
         if args_dict.get('config') and os.path.exists(args_dict['config']):
@@ -64,6 +67,31 @@ class EvilSpiderConfig:
             self.config['keywords'] = [k.strip() for k in self.config['keywords'].split(',')]
         if isinstance(self.config['exts'], str):
             self.config['exts'] = [e.strip() for e in self.config['exts'].split(',')]
+
+        if self.config.get('cookies'):
+            self.config['parsed_cookies'] = {}
+            cookie_input = self.config['cookies']
+            # Check if it's a file
+            if os.path.isfile(cookie_input):
+                try:
+                    with open(cookie_input, 'r') as f:
+                        cookie_str = f.read().strip()
+                except Exception as e:
+                    logging.error(f"Error reading cookie file {cookie_input}: {e}")
+                    sys.exit(1)
+            else:
+                cookie_str = cookie_input
+
+            # Parse cookie string
+            try:
+                import http.cookies
+                simple_cookie = http.cookies.SimpleCookie()
+                simple_cookie.load(cookie_str)
+                for key, morsel in simple_cookie.items():
+                    self.config['parsed_cookies'][key] = morsel.value
+            except Exception as e:
+                logging.error(f"Error parsing cookies: {e}")
+                sys.exit(1)
 
         # Validate output path
         self.config['output'] = os.path.abspath(self.config['output'])

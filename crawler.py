@@ -97,16 +97,29 @@ class Crawler:
                     if status in self.config['status']:
                         # 2. Check Extensions & Keywords
                         if self.check_extension(url) and self.contains_keywords(text):
+                            # Detect file uploads
+                            has_upload = False
+                            if self.config.get('detect_uploads'):
+                                if re.search(r'<input[^>]+type=["\']file["\']', text, re.I):
+                                    has_upload = True
+
                             # 3. Check Parameters
                             if not self.config['params_only'] or self.is_parameterized(url):
+                                result_entry = {"url": url, "status": status}
+                                if has_upload:
+                                    result_entry["has_upload"] = True
+
                                 if self.config['json']:
-                                    sys.stdout.write(json.dumps({"url": url, "status": status}) + "\n")
+                                    sys.stdout.write(json.dumps(result_entry) + "\n")
                                     sys.stdout.flush()
                                 else:
                                     if not self.config['quiet']:
-                                        sys.stdout.write(f"[+] [{status}] Found: {url}\n")
+                                        if has_upload:
+                                            sys.stdout.write(f"[+] [{status}] Found Upload Form: {url}\n")
+                                        else:
+                                            sys.stdout.write(f"[+] [{status}] Found: {url}\n")
                                         sys.stdout.flush()
-                                self.results.append({"url": url, "status": status})
+                                self.results.append(result_entry)
 
                     clean_links = []
                     # Always extract links on 200 or 404 (to find hidden endpoints)
@@ -174,7 +187,7 @@ class Crawler:
         connector = aiohttp.TCPConnector(limit_per_host=self.config['threads'])
         headers = {"User-Agent": self.config['user_agent']}
 
-        async with aiohttp.ClientSession(headers=headers, connector=connector) as session:
+        async with aiohttp.ClientSession(headers=headers, connector=connector, cookies=self.config.get('parsed_cookies')) as session:
             # Parse robots.txt and sitemap.xml first
             await self.parse_robots_txt(session)
             await self.parse_sitemap(session)

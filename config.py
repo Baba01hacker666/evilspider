@@ -24,7 +24,10 @@ class EvilSpiderConfig:
             "sitemaps": False,
             "detect_uploads": False,
             "cookies": None,
-            "parsed_cookies": None
+            "parsed_cookies": None,
+            "proxy": None,
+            "headers": None,
+            "parsed_headers": {}
         }
 
         if args_dict.get('config') and os.path.exists(args_dict['config']):
@@ -92,6 +95,14 @@ class EvilSpiderConfig:
             except Exception as e:
                 logging.error(f"Error parsing cookies: {e}")
                 sys.exit(1)
+
+        if self.config.get('headers'):
+            for header in self.config['headers']:
+                if ':' in header:
+                    key, value = header.split(':', 1)
+                    self.config['parsed_headers'][key.strip()] = value.strip()
+                else:
+                    logging.warning(f"Invalid header format: {header}")
 
         # Validate output path
         self.config['output'] = os.path.abspath(self.config['output'])

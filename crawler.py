@@ -38,7 +38,7 @@ class Crawler:
         robots_url = f"{parsed_url.scheme}://{parsed_url.netloc}/robots.txt"
         logging.info(f"Parsing robots.txt: {robots_url}")
         try:
-            async with session.get(robots_url, timeout=self.config['timeout'], ssl=False) as response:
+            async with session.get(robots_url, timeout=self.config['timeout'], ssl=False, proxy=self.config.get('proxy')) as response:
                 if response.status == 200:
                     text = await response.text()
                     urls = []
@@ -67,7 +67,7 @@ class Crawler:
             sitemap_url = f"{parsed_url.scheme}://{parsed_url.netloc}/sitemap.xml"
         logging.info(f"Parsing sitemap.xml: {sitemap_url}")
         try:
-            async with session.get(sitemap_url, timeout=self.config['timeout'], ssl=False) as response:
+            async with session.get(sitemap_url, timeout=self.config['timeout'], ssl=False, proxy=self.config.get('proxy')) as response:
                 if response.status == 200:
                     text = await response.text()
                     urls = re.findall(r'<loc>(.*?)</loc>', text)
@@ -89,7 +89,7 @@ class Crawler:
 
         async with self.semaphore:
             try:
-                async with session.get(url, timeout=self.config['timeout'], ssl=False) as response:
+                async with session.get(url, timeout=self.config['timeout'], ssl=False, proxy=self.config.get('proxy')) as response:
                     status = response.status
                     text = await response.text()
 
@@ -186,6 +186,8 @@ class Crawler:
 
         connector = aiohttp.TCPConnector(limit_per_host=self.config['threads'])
         headers = {"User-Agent": self.config['user_agent']}
+        if self.config.get('parsed_headers'):
+            headers.update(self.config['parsed_headers'])
 
         async with aiohttp.ClientSession(headers=headers, connector=connector, cookies=self.config.get('parsed_cookies')) as session:
             # Parse robots.txt and sitemap.xml first

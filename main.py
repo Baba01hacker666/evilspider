@@ -42,6 +42,10 @@ Examples:
     crawl_parser.add_argument("--sitemaps", action="store_true", help="Parse sitemap.xml")
     crawl_parser.add_argument("--detect-uploads", action="store_true", help="Detect forms with file uploads")
     crawl_parser.add_argument("-C", "--cookies", help="Cookies to use for requests (string or file path)")
+    crawl_parser.add_argument("-T", "--timeout", type=int, help="Request timeout in seconds (default: 5)")
+    crawl_parser.add_argument("-A", "--user-agent", help="Custom User-Agent string")
+    crawl_parser.add_argument("-x", "--proxy", help="Proxy URL (e.g., http://127.0.0.1:8080)")
+    crawl_parser.add_argument("-H", "--headers", action="append", help="Custom headers (e.g., -H 'X-Forwarded-For: 127.0.0.1')")
     
     args = parser.parse_args()
     

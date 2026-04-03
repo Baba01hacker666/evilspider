@@ -19,6 +19,21 @@ Examples:
 
   Crawl quietly and output results in JSON format:
     %(prog)s crawl -u http://example.com --quiet --json
+
+  Hidden endpoint hunt:
+    %(prog)s crawl -u https://target.tld -s 200,403,404 --robots --sitemaps -d 4
+
+  Upload surface hunt:
+    %(prog)s crawl -u https://target.tld --detect-uploads -k upload,file,multipart -s 200,403
+
+  Authenticated crawl with cookies:
+    %(prog)s crawl -u https://target.tld -C 'session=abc123; role=admin' -H 'X-Requested-With: EvilSpider'
+
+  Proxied Burp crawl:
+    %(prog)s crawl -u https://target.tld -x http://127.0.0.1:8080 --follow-redirects --report-redirects
+
+  403/200 recon mode:
+    %(prog)s crawl -u https://target.tld -s 200,403 -e php,bak,env -p
         """
     )
 
@@ -43,9 +58,17 @@ Examples:
     crawl_parser.add_argument("--detect-uploads", action="store_true", help="Detect forms with file uploads")
     crawl_parser.add_argument("-C", "--cookies", help="Cookies to use for requests (string or file path)")
     crawl_parser.add_argument("-T", "--timeout", type=int, help="Request timeout in seconds (default: 5)")
+    crawl_parser.add_argument("--connect-timeout", type=int, help="Socket connect timeout in seconds (default: timeout)")
+    crawl_parser.add_argument("--read-timeout", type=int, help="Socket read timeout in seconds (default: timeout)")
     crawl_parser.add_argument("-A", "--user-agent", help="Custom User-Agent string")
     crawl_parser.add_argument("-x", "--proxy", help="Proxy URL (e.g., http://127.0.0.1:8080)")
     crawl_parser.add_argument("-H", "--headers", action="append", help="Custom headers (e.g., -H 'X-Forwarded-For: 127.0.0.1')")
+    crawl_parser.add_argument("--retries", type=int, help="Retries per request (default: 2)")
+    crawl_parser.add_argument("--retry-backoff", type=float, help="Base exponential backoff in seconds (default: 0.5)")
+    crawl_parser.add_argument("--retry-jitter", type=float, help="Max random jitter seconds added to backoff (default: 0.25)")
+    crawl_parser.add_argument("--follow-redirects", action=argparse.BooleanOptionalAction, default=None, help="Follow HTTP redirects (default: true)")
+    crawl_parser.add_argument("--report-redirects", action="store_true", help="Include redirect chain in output records")
+    crawl_parser.add_argument("--max-body-bytes", type=int, help="Skip parsing bodies larger than this size in bytes (default: 1048576)")
     
     args = parser.parse_args()
     

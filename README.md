@@ -103,3 +103,8 @@ python main.py crawl \
 - Attack surface discovery
 - OSINT crawling
 - Hidden endpoint enumeration
+
+
+## Keywords
+
+web crawler python, async crawler, security crawler, recon tool, bug bounty crawler, endpoint discovery tool, subdomain discovery, osint crawler

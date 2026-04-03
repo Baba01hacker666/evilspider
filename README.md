@@ -96,3 +96,10 @@ python main.py crawl \
 - `-x, --proxy`: Proxy URL
 - `-j, --json`: Stream findings as JSON lines
 - `-o, --output`: File to write final JSON findings
+
+## Use Cases
+
+- Bug bounty reconnaissance
+- Attack surface discovery
+- OSINT crawling
+- Hidden endpoint enumeration

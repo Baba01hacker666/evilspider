@@ -10,6 +10,8 @@ class EvilSpiderConfig:
             "url": None,
             "threads": 10,
             "timeout": 5,
+            "connect_timeout": None,
+            "read_timeout": None,
             "params_only": False,
             "status": [200],
             "keywords": [],
@@ -27,7 +29,13 @@ class EvilSpiderConfig:
             "parsed_cookies": None,
             "proxy": None,
             "headers": None,
-            "parsed_headers": {}
+            "parsed_headers": {},
+            "retries": 2,
+            "retry_backoff": 0.5,
+            "retry_jitter": 0.25,
+            "follow_redirects": True,
+            "report_redirects": False,
+            "max_body_bytes": 1048576
         }
 
         if args_dict.get('config') and os.path.exists(args_dict['config']):
@@ -70,6 +78,23 @@ class EvilSpiderConfig:
             self.config['keywords'] = [k.strip() for k in self.config['keywords'].split(',')]
         if isinstance(self.config['exts'], str):
             self.config['exts'] = [e.strip() for e in self.config['exts'].split(',')]
+
+        for int_key in ("timeout", "connect_timeout", "read_timeout", "max_body_bytes", "retries"):
+            value = self.config.get(int_key)
+            if value is None:
+                continue
+            try:
+                self.config[int_key] = int(value)
+            except (TypeError, ValueError):
+                logging.error(f"{int_key} must be an integer.")
+                sys.exit(1)
+
+        for float_key in ("retry_backoff", "retry_jitter"):
+            try:
+                self.config[float_key] = float(self.config[float_key])
+            except (TypeError, ValueError):
+                logging.error(f"{float_key} must be numeric.")
+                sys.exit(1)
 
         if self.config.get('cookies'):
             self.config['parsed_cookies'] = {}

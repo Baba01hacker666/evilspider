@@ -61,6 +61,12 @@ Examples:
     crawl_parser.add_argument("--connect-timeout", type=int, help="Socket connect timeout in seconds (default: timeout)")
     crawl_parser.add_argument("--read-timeout", type=int, help="Socket read timeout in seconds (default: timeout)")
     crawl_parser.add_argument("-A", "--user-agent", help="Custom User-Agent string")
+    crawl_parser.add_argument(
+        "-i",
+        "--impersonate",
+        choices=["chrome", "firefox", "edge", "safari", "chrome-android", "safari-ios"],
+        help="Impersonate a real browser profile (User-Agent + common client headers)",
+    )
     crawl_parser.add_argument("-x", "--proxy", help="Proxy URL (e.g., http://127.0.0.1:8080)")
     crawl_parser.add_argument("-H", "--headers", action="append", help="Custom headers (e.g., -H 'X-Forwarded-For: 127.0.0.1')")
     crawl_parser.add_argument("--retries", type=int, help="Retries per request (default: 2)")
@@ -95,11 +101,19 @@ def print_logo(quiet):
     if quiet:
         return
     logo = r'''
-      / _ \
-    \_\(_)/_/
-     _//o\\_
-      /   \
-    EvilSpider
+                 /\  .-"""-.  /\
+                //\\/  ,,,  \//\\
+                |/\| ,;;;;;, |/\|
+                //\\\;-"""-;///\\
+               //  \/   .   \/  \\
+              (| ,-_| \ | / |_-, |)
+                //`__\.-.-./__`\\
+               // /.-(() ())-.\ \\
+              (\ |)   '---'   (| /)
+               ` (|           |) `
+                 \)           (/
+
+                      EvilSpider
     '''
     sys.stderr.write(logo + "\n")
     sys.stderr.flush()

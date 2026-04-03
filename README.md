@@ -15,6 +15,7 @@ Async attack-surface crawler for recon. EvilSpider prioritizes useful findings (
 - Parameterized URL detection
 - File upload form detection
 - Cookies, custom headers, proxies, custom User-Agent
+- Browser impersonation profiles (Chrome/Firefox/Edge/Safari + mobile variants)
 - In-scope subdomain discovery
 - JSON output
 
@@ -67,7 +68,14 @@ python main.py crawl \
   --report-redirects
 ```
 
-### 5) 403/200 recon mode
+### 5) Browser impersonation mode
+```bash
+python main.py crawl \
+  -u https://target.tld \
+  -i chrome
+```
+
+### 6) 403/200 recon mode
 ```bash
 python main.py crawl \
   -u https://target.tld \
@@ -93,6 +101,7 @@ python main.py crawl \
 - `--follow-redirects`, `--report-redirects`: Redirect strategy/reporting
 - `-C, --cookies`: Cookie string or cookie file
 - `-H, --headers`: Add request headers (repeatable)
+- `-i, --impersonate`: Use real browser header/User-Agent profiles
 - `-x, --proxy`: Proxy URL
 - `-j, --json`: Stream findings as JSON lines
 - `-o, --output`: File to write final JSON findings

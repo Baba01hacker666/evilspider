@@ -4,6 +4,91 @@ import sys
 import logging
 from urllib.parse import urlparse
 
+
+BROWSER_IMPERSONATION_PROFILES = {
+    "chrome": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "headers": {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-CH-UA": '"Chromium";v="124", "Google Chrome";v="124", "Not(A:Brand";v="99"',
+            "Sec-CH-UA-Mobile": "?0",
+            "Sec-CH-UA-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+        },
+    },
+    "firefox": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+        "headers": {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+        },
+    },
+    "edge": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
+        "headers": {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-CH-UA": '"Chromium";v="124", "Microsoft Edge";v="124", "Not(A:Brand";v="99"',
+            "Sec-CH-UA-Mobile": "?0",
+            "Sec-CH-UA-Platform": '"Windows"',
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+        },
+    },
+    "safari": {
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+        "headers": {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+        },
+    },
+    "chrome-android": {
+        "user_agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+        "headers": {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-CH-UA": '"Chromium";v="124", "Google Chrome";v="124", "Not(A:Brand";v="99"',
+            "Sec-CH-UA-Mobile": "?1",
+            "Sec-CH-UA-Platform": '"Android"',
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+        },
+    },
+    "safari-ios": {
+        "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+        "headers": {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+        },
+    },
+}
+
 class EvilSpiderConfig:
     def __init__(self, args_dict):
         self.config = {
@@ -30,6 +115,7 @@ class EvilSpiderConfig:
             "proxy": None,
             "headers": None,
             "parsed_headers": {},
+            "impersonate": None,
             "retries": 2,
             "retry_backoff": 0.5,
             "retry_jitter": 0.25,
@@ -51,8 +137,8 @@ class EvilSpiderConfig:
                 sys.exit(1)
 
         # Override with CLI arguments (if provided)
-        cli_args = {k: v for k, v in args_dict.items() if v is not None}
-        self.config.update(cli_args)
+        self.cli_args = {k: v for k, v in args_dict.items() if v is not None}
+        self.config.update(self.cli_args)
 
         self._validate_and_parse()
 
@@ -95,6 +181,16 @@ class EvilSpiderConfig:
             except (TypeError, ValueError):
                 logging.error(f"{float_key} must be numeric.")
                 sys.exit(1)
+
+        if self.config.get("impersonate"):
+            profile = BROWSER_IMPERSONATION_PROFILES.get(self.config["impersonate"])
+            if not profile:
+                logging.error(f"Unknown impersonation profile: {self.config['impersonate']}")
+                sys.exit(1)
+
+            if "user_agent" not in self.cli_args:
+                self.config["user_agent"] = profile["user_agent"]
+            self.config["parsed_headers"].update(profile["headers"])
 
         if self.config.get('cookies'):
             self.config['parsed_cookies'] = {}

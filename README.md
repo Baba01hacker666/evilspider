@@ -104,7 +104,14 @@ python main.py crawl \
 - OSINT crawling
 - Hidden endpoint enumeration
 
+## Comparison
 
+Unlike traditional crawlers like Scrapy or Crawlee, EvilSpider focuses on offensive security use-cases such as:
+
+- finding hidden endpoints
+- detecting upload forms
+- extracting parameterized URLS
+  
 ## Keywords
 
 web crawler python, async crawler, security crawler, recon tool, bug bounty crawler, endpoint discovery tool, subdomain discovery, osint crawler
